@@ -435,6 +435,115 @@
 
   function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
+  // ====== SOUND ENGINE ======
+  let audioCtx = null;
+  function getCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function playFart() {
+    try {
+      const ctx = getCtx();
+      const t   = ctx.currentTime;
+      // Random fart length: short ripper or long sputtery one
+      const dur = 0.35 + Math.random() * 0.55;
+
+      // White noise source
+      const bufSize = Math.floor(ctx.sampleRate * dur);
+      const buf     = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data    = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+
+      // Bandpass filter sweeps high → low (pressure releasing = pitch drops)
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(380 + Math.random() * 80, t);
+      filt.frequency.exponentialRampToValueAtTime(55, t + dur);
+      filt.Q.value = 1.4;
+
+      // Sawtooth oscillator for extra buzz/flap
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160 + Math.random() * 50, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.28, t);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.85);
+
+      // Master gain with quick attack and decay
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.001, t);
+      master.gain.linearRampToValueAtTime(0.9, t + 0.02);  // fast attack
+      master.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+      noise.connect(filt);
+      filt.connect(master);
+      osc.connect(oscGain);
+      oscGain.connect(master);
+      master.connect(ctx.destination);
+
+      noise.start(t); osc.start(t);
+      noise.stop(t + dur); osc.stop(t + dur);
+    } catch(e) {}
+  }
+
+  function playPuke() {
+    try {
+      const ctx = getCtx();
+      const t = ctx.currentTime;
+      // Two-part sound: heave (rising pitch) then splat (descending wet noise)
+      const heaveDur = 0.25;
+      const splatDur = 0.45;
+
+      // --- HEAVE: rising pitched moan ---
+      const heaveOsc = ctx.createOscillator();
+      heaveOsc.type = 'sine';
+      heaveOsc.frequency.setValueAtTime(120, t);
+      heaveOsc.frequency.exponentialRampToValueAtTime(320, t + heaveDur);
+
+      const heaveGain = ctx.createGain();
+      heaveGain.gain.setValueAtTime(0.001, t);
+      heaveGain.gain.linearRampToValueAtTime(0.4, t + 0.05);
+      heaveGain.gain.exponentialRampToValueAtTime(0.001, t + heaveDur);
+
+      heaveOsc.connect(heaveGain);
+      heaveGain.connect(ctx.destination);
+      heaveOsc.start(t);
+      heaveOsc.stop(t + heaveDur);
+
+      // --- SPLAT: filtered noise that tumbles down ---
+      const splatStart = t + heaveDur + 0.04;
+      const bufSize2   = Math.floor(ctx.sampleRate * splatDur);
+      const buf2       = ctx.createBuffer(1, bufSize2, ctx.sampleRate);
+      const data2      = buf2.getChannelData(0);
+      for (let i = 0; i < bufSize2; i++) data2[i] = Math.random() * 2 - 1;
+      const splat = ctx.createBufferSource();
+      splat.buffer = buf2;
+
+      const splatFilt = ctx.createBiquadFilter();
+      splatFilt.type = 'lowpass';
+      splatFilt.frequency.setValueAtTime(900, splatStart);
+      splatFilt.frequency.exponentialRampToValueAtTime(150, splatStart + splatDur);
+      splatFilt.Q.value = 3;
+
+      const splatGain = ctx.createGain();
+      splatGain.gain.setValueAtTime(0.001, splatStart);
+      splatGain.gain.linearRampToValueAtTime(0.75, splatStart + 0.03);
+      splatGain.gain.exponentialRampToValueAtTime(0.001, splatStart + splatDur);
+
+      splat.connect(splatFilt);
+      splatFilt.connect(splatGain);
+      splatGain.connect(ctx.destination);
+      splat.start(splatStart);
+      splat.stop(splatStart + splatDur);
+    } catch(e) {}
+  }
+
   function pick(idx) {
     if (busy) return;
     busy = true;
@@ -492,6 +601,7 @@
         document.getElementById('char-body').style.borderColor = '#b91c1c';
         burstEl.textContent = isPoop ? '💩' : '🤮';
         burstEl.className = 'bad';
+        if (isPoop) playFart(); else playPuke();
         document.getElementById('stall-' + idx).classList.add('wrong');
         document.getElementById('stall-' + correct).classList.add('correct');
         document.getElementById('door-' + idx).textContent = isPoop ? '💩' : '🤮';
