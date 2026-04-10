@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🚽 Stall or Fall!</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fef9c3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px 16px 40px;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 4px;
+      text-align: center;
+      text-shadow: 2px 2px 0 #a16207;
+      color: #92400e;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: #78350f;
+      margin-bottom: 18px;
+      text-align: center;
+    }
+
+    .score-bar {
+      display: flex;
+      gap: 24px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #44403c;
+      margin-bottom: 20px;
+      background: #fde68a;
+      border: 3px solid #f59e0b;
+      border-radius: 20px;
+      padding: 8px 24px;
+    }
+
+    .score-bar span { color: #92400e; }
+
+    /* ========== STALLS ========== */
+    .stalls {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 24px;
+    }
+
+    .stall {
+      flex: 1;
+      background: #d6cfc4;
+      border: 4px solid #a8a29e;
+      border-radius: 12px 12px 4px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      position: relative;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      min-height: 170px;
+    }
+
+    .stall:active { transform: scale(0.96); }
+
+    .stall.disabled { cursor: default; pointer-events: none; }
+
+    /* door top bar */
+    .stall-top {
+      width: 100%;
+      background: #78716c;
+      border-radius: 8px 8px 0 0;
+      padding: 6px 0;
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: 900;
+      color: #fef9c3;
+      letter-spacing: 1px;
+    }
+
+    /* door body */
+    .stall-door {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 6px;
+      font-size: 3rem;
+      border-top: 4px solid #a8a29e;
+      background: #e7e5e4;
+      border-radius: 0 0 4px 4px;
+      position: relative;
+    }
+
+    /* door handle */
+    .stall-door::after {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 24px;
+      background: #a8a29e;
+      border-radius: 4px;
+    }
+
+    /* ========== RESULT OVERLAY ========== */
+    .result-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .result-overlay.show { display: flex; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes popIn  { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes shake  {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-12px) rotate(-3deg); }
+      40%      { transform: translateX(12px) rotate(3deg); }
+      60%      { transform: translateX(-8px) rotate(-2deg); }
+      80%      { transform: translateX(8px) rotate(2deg); }
+    }
+    @keyframes bounce {
+      0%,100% { transform: translateY(0); }
+      30%     { transform: translateY(-20px); }
+      60%     { transform: translateY(-8px); }
+    }
+
+    .result-card {
+      background: white;
+      border-radius: 24px;
+      padding: 32px 28px 24px;
+      text-align: center;
+      max-width: 320px;
+      width: 88%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .result-card.win  { border: 5px solid #22c55e; }
+    .result-card.lose { border: 5px solid #ef4444; }
+
+    .result-emoji { font-size: 5rem; margin-bottom: 10px; display: block; }
+    .result-emoji.shake  { animation: shake 0.6s ease; }
+    .result-emoji.bounce { animation: bounce 0.7s ease; }
+
+    .result-title {
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+    .win  .result-title { color: #16a34a; }
+    .lose .result-title { color: #dc2626; }
+
+    .result-msg {
+      font-size: 1rem;
+      color: #57534e;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+
+    .btn-restart {
+      background: #f59e0b;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 36px;
+      font-size: 1.2rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #b45309;
+      transition: transform 0.1s, box-shadow 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-restart:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #b45309;
+    }
+
+    /* ========== STREAK BADGE ========== */
+    .streak {
+      font-size: 0.9rem;
+      color: #92400e;
+      margin-top: 6px;
+      min-height: 22px;
+      font-weight: bold;
+    }
+
+    /* ========== INSTRUCTION TEXT ========== */
+    .instructions {
+      font-size: 1.05rem;
+      color: #57534e;
+      text-align: center;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    /* stall hover glow on desktop */
+    @media (hover: hover) {
+      .stall:not(.disabled):hover {
+        transform: translateY(-4px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        border-color: #f59e0b;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🚽 Stall or Fall!</h1>
+  <p class="subtitle">One stall is safe… pick wisely! 💀</p>
+
+  <div class="score-bar">
+    ✅ Wins: <span id="wins">0</span> &nbsp; 💀 Fails: <span id="fails">0</span>
+  </div>
+
+  <p class="instructions">Tap a stall to enter!</p>
+
+  <div class="stalls" id="stalls">
+    <div class="stall" id="stall-0" onclick="pick(0)">
+      <div class="stall-top">1</div>
+      <div class="stall-door" id="door-0">🚪</div>
+    </div>
+    <div class="stall" id="stall-1" onclick="pick(1)">
+      <div class="stall-top">2</div>
+      <div class="stall-door" id="door-1">🚪</div>
+    </div>
+    <div class="stall" id="stall-2" onclick="pick(2)">
+      <div class="stall-top">3</div>
+      <div class="stall-door" id="door-2">🚪</div>
+    </div>
+  </div>
+
+  <div class="streak" id="streak"></div>
+
+  <!-- Result overlay -->
+  <div class="result-overlay" id="overlay">
+    <div class="result-card" id="result-card">
+      <span class="result-emoji" id="result-emoji"></span>
+      <div class="result-title" id="result-title"></div>
+      <div class="result-msg" id="result-msg"></div>
+      <button class="btn-restart" onclick="restart()">🔄 Try Again!</button>
+    </div>
+  </div>
+
+<script>
+  let wins = 0;
+  let fails = 0;
+  let streak = 0;
+  let correctStall = Math.floor(Math.random() * 3);
+  let picked = false;
+
+  const winMessages = [
+    { title: "MADE IT! 🎉", msg: "You sat down just in time. Ahhh, sweet relief. 😌" },
+    { title: "SAFE ZONE! ✅", msg: "Clean seat, no problems. You're basically a bathroom genius." },
+    { title: "PERFECT PICK! 💯", msg: "Right stall, right time. You're a legend." },
+    { title: "OH YEAH! 🏆", msg: "Nailed it! The toilet gods smile upon you." },
+    { title: "SO FRESH! 🌈", msg: "That stall was CLEAN. You're living your best life." },
+  ];
+
+  const poopMessages = [
+    { title: "OH NO! 💩", msg: "You didn't make it in time... it happened. In your pants. 💀", emoji: "🤯💩" },
+    { title: "CODE BROWN! 🚨", msg: "That stall was already taken. You waited too long. RIP pants.", emoji: "😱💩" },
+    { title: "THE WORST! 😭", msg: "You walked into the wrong stall and panicked. Total accident.", emoji: "💩😰" },
+    { title: "YIKES! 💥", msg: "Stall was locked! You just couldn't hold it anymore... oops.", emoji: "💩🫣" },
+    { title: "PANTS DOWN! 🫠", msg: "Wrong stall. Now everyone in the bathroom knows your shame.", emoji: "😬💩" },
+  ];
+
+  const vomitMessages = [
+    { title: "BLARRGH! 🤮", msg: "That stall smelled SO bad you lost it immediately. All over the floor.", emoji: "🤢🤮" },
+    { title: "CODE GREEN! 🟢", msg: "Opened the door and... yeah. You couldn't unsee it. Or un-smell it.", emoji: "🤮😵" },
+    { title: "TOTAL WIPEOUT! 🌊", msg: "Whatever was in that stall should be illegal. You threw up instantly.", emoji: "😷🤮" },
+    { title: "ABORT! ABORT! 🚀", msg: "You opened the door and your stomach decided: NOPE. Everywhere.", emoji: "🤮💀" },
+    { title: "BIG MISTAKE! ❌", msg: "Wrong stall. Something unspeakable was inside. You're still recovering.", emoji: "😵‍💫🤮" },
+  ];
+
+  function pick(index) {
+    if (picked) return;
+    picked = true;
+
+    // Disable all stalls
+    document.querySelectorAll('.stall').forEach(s => s.classList.add('disabled'));
+
+    if (index === correctStall) {
+      // WIN
+      wins++;
+      streak++;
+      document.getElementById('wins').textContent = wins;
+
+      const m = winMessages[Math.floor(Math.random() * winMessages.length)];
+      showResult(true, '🎉', m.title, m.msg);
+      document.getElementById('door-' + index).textContent = '🚽';
+
+    } else {
+      // LOSE — randomly choose poop or vomit
+      fails++;
+      streak = 0;
+      document.getElementById('fails').textContent = fails;
+
+      const isPoop = Math.random() < 0.5;
+      const messages = isPoop ? poopMessages : vomitMessages;
+      const m = messages[Math.floor(Math.random() * messages.length)];
+      showResult(false, m.emoji, m.title, m.msg);
+
+      // Show correct stall
+      document.getElementById('door-' + correctStall).textContent = '🚽';
+      document.getElementById('door-' + index).textContent = isPoop ? '💩' : '🤮';
+    }
+
+    updateStreak();
+  }
+
+  function showResult(win, emoji, title, msg) {
+    const card = document.getElementById('result-card');
+    card.className = 'result-card ' + (win ? 'win' : 'lose');
+
+    const emojiEl = document.getElementById('result-emoji');
+    emojiEl.textContent = emoji;
+    emojiEl.className = 'result-emoji ' + (win ? 'bounce' : 'shake');
+
+    document.getElementById('result-title').textContent = title;
+    document.getElementById('result-msg').textContent = msg;
+
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function restart() {
+    picked = false;
+    correctStall = Math.floor(Math.random() * 3);
+
+    // Reset doors
+    for (let i = 0; i < 3; i++) {
+      document.getElementById('door-' + i).textContent = '🚪';
+      document.getElementById('stall-' + i).classList.remove('disabled');
+    }
+
+    document.getElementById('overlay').classList.remove('show');
+    updateStreak();
+  }
+
+  function updateStreak() {
+    const el = document.getElementById('streak');
+    if (streak >= 3) {
+      el.textContent = '🔥 ' + streak + ' in a row! You\'re on fire!';
+    } else if (streak === 2) {
+      el.textContent = '⚡ 2 in a row! Keep going!';
+    } else {
+      el.textContent = '';
+    }
+  }
+</script>
+</body>
+</html>
