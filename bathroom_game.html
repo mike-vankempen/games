@@ -443,6 +443,20 @@
     return audioCtx;
   }
 
+  function sayGoCharlie() {
+    try {
+      window.speechSynthesis.cancel(); // clear any queued speech
+      const phrases = ['Go Charlie!', 'Go Charlie!', 'Go Charlie!'];
+      phrases.forEach((text, i) => {
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.rate  = 1.15;
+        utt.pitch = 1.4;
+        utt.volume = 1;
+        window.speechSynthesis.speak(utt);
+      });
+    } catch(e) {}
+  }
+
   function playFart() {
     try {
       const ctx = getCtx();
@@ -589,6 +603,7 @@
         burstEl.className = 'good';
         document.getElementById('stall-' + idx).classList.add('correct');
         document.getElementById('instructions').textContent = '✅ You picked right!';
+        if (wins % 5 === 0) sayGoCharlie();
         setTimeout(() => showCard(true), 960);
       } else {
         fails++;
