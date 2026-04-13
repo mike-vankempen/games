@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pop the Bubbles! 🫧</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 60%, #E0F8FF 100%);
+      width: 100vw;
+      height: 100vh;
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #score-display {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(2rem, 8vw, 4rem);
+      color: white;
+      text-shadow: 3px 3px 0 #4488cc, -1px -1px 0 #4488cc;
+      z-index: 100;
+      pointer-events: none;
+      transition: transform 0.1s;
+    }
+
+    #score-display.pop {
+      transform: translateX(-50%) scale(1.3);
+    }
+
+    #title {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(1rem, 4vw, 1.8rem);
+      color: rgba(255,255,255,0.85);
+      text-shadow: 2px 2px 0 #4488cc;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    #lives-display {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(1.8rem, 7vw, 3rem);
+      z-index: 100;
+      pointer-events: none;
+      letter-spacing: 6px;
+      filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.25));
+      transition: transform 0.15s;
+    }
+
+    #lives-display.shake {
+      animation: liveShake 0.35s ease;
+    }
+
+    @keyframes liveShake {
+      0%   { transform: translateX(-50%) scale(1); }
+      25%  { transform: translateX(calc(-50% - 8px)) scale(1.15); }
+      50%  { transform: translateX(calc(-50% + 8px)) scale(1.15); }
+      75%  { transform: translateX(calc(-50% - 4px)) scale(1.05); }
+      100% { transform: translateX(-50%) scale(1); }
+    }
+
+    #gameover-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(60, 130, 200, 0.93);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      gap: 20px;
+    }
+
+    #gameover-screen h1 {
+      font-size: clamp(2.5rem, 10vw, 5rem);
+      color: white;
+      text-shadow: 4px 4px 0 #225588;
+      text-align: center;
+    }
+
+    #gameover-screen .final-score {
+      font-size: clamp(2rem, 8vw, 4rem);
+      color: #FFD700;
+      text-shadow: 3px 3px 0 #996600;
+      text-align: center;
+    }
+
+    #gameover-screen .well-done {
+      font-size: clamp(1.2rem, 5vw, 2rem);
+      color: white;
+      text-shadow: 2px 2px 0 #225588;
+      text-align: center;
+    }
+
+    #replay-btn {
+      font-size: clamp(1.5rem, 6vw, 2.5rem);
+      padding: 20px 50px;
+      background: #FFD700;
+      color: #333;
+      border: none;
+      border-radius: 60px;
+      cursor: pointer;
+      box-shadow: 0 8px 0 #cc9900;
+      transition: transform 0.1s, box-shadow 0.1s;
+      font-family: inherit;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    #replay-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #cc9900;
+    }
+
+    /* ---- 50-pop celebration overlay ---- */
+    #celebration-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 500;
+      display: none;
+    }
+
+    #celebration-banner {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      background: linear-gradient(135deg, #FFD700, #FF8C00);
+      border-radius: 30px;
+      padding: 30px 50px;
+      text-align: center;
+      z-index: 600;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      display: none;
+      pointer-events: none;
+      animation: bannerPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    #celebration-banner h2 {
+      font-size: clamp(2rem, 8vw, 4rem);
+      color: white;
+      text-shadow: 3px 3px 0 #cc6600;
+    }
+
+    #celebration-banner p {
+      font-size: clamp(1.2rem, 5vw, 2.2rem);
+      color: white;
+      text-shadow: 2px 2px 0 #cc6600;
+      margin-top: 8px;
+    }
+
+    @keyframes bannerPop {
+      0%   { transform: translate(-50%, -50%) scale(0) rotate(-5deg); }
+      70%  { transform: translate(-50%, -50%) scale(1.1) rotate(2deg); }
+      100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    }
+
+    .confetti-piece {
+      position: fixed;
+      width: 12px;
+      height: 12px;
+      pointer-events: none;
+      z-index: 510;
+      border-radius: 2px;
+      animation: confettiFall linear forwards;
+    }
+
+    @keyframes confettiFall {
+      0%   { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+      80%  { opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg) scale(0.5); opacity: 0; }
+    }
+
+    .firework {
+      position: fixed;
+      pointer-events: none;
+      z-index: 510;
+      font-size: clamp(1.5rem, 5vw, 2.5rem);
+      animation: fireworkBurst 0.8s ease-out forwards;
+    }
+
+    @keyframes fireworkBurst {
+      0%   { transform: scale(0) rotate(0deg); opacity: 1; }
+      60%  { transform: scale(1.8) rotate(180deg); opacity: 1; }
+      100% { transform: scale(0.3) rotate(360deg); opacity: 0; }
+    }
+
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      cursor: pointer;
+      animation: floatUp linear forwards;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      transition: transform 0.05s;
+    }
+
+    .bubble:hover { transform: scale(1.1); }
+    .bubble:active { transform: scale(0.9); }
+
+    @keyframes floatUp {
+      0%   { bottom: -150px; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { bottom: 110vh; opacity: 0; }
+    }
+
+    .splat {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: splatAnim 0.5s ease-out forwards;
+      z-index: 200;
+    }
+
+    @keyframes splatAnim {
+      0%   { transform: scale(0.5); opacity: 1; }
+      50%  { transform: scale(2.5); opacity: 0.8; }
+      100% { transform: scale(3.5); opacity: 0; }
+    }
+
+    .star {
+      position: absolute;
+      pointer-events: none;
+      font-size: 2rem;
+      animation: starAnim 0.7s ease-out forwards;
+      z-index: 201;
+    }
+
+    @keyframes starAnim {
+      0%   { transform: scale(0) rotate(0deg); opacity: 1; }
+      60%  { transform: scale(1.5) rotate(180deg); opacity: 1; }
+      100% { transform: scale(0.5) rotate(360deg) translateY(-60px); opacity: 0; }
+    }
+
+    #clouds {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .cloud {
+      position: absolute;
+      font-size: clamp(3rem, 8vw, 6rem);
+      opacity: 0.6;
+      animation: driftCloud linear infinite;
+    }
+
+    @keyframes driftCloud {
+      from { transform: translateX(-200px); }
+      to   { transform: translateX(calc(100vw + 200px)); }
+    }
+
+    #start-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(100, 180, 255, 0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      gap: 24px;
+    }
+
+    #start-screen h1 {
+      font-size: clamp(2.5rem, 10vw, 5rem);
+      color: white;
+      text-shadow: 4px 4px 0 #3377bb;
+      text-align: center;
+    }
+
+    #start-screen p {
+      font-size: clamp(1.2rem, 5vw, 2rem);
+      color: white;
+      text-shadow: 2px 2px 0 #3377bb;
+      text-align: center;
+      padding: 0 20px;
+    }
+
+    #start-btn {
+      font-size: clamp(1.5rem, 6vw, 2.5rem);
+      padding: 20px 50px;
+      background: #FFD700;
+      color: #333;
+      border: none;
+      border-radius: 60px;
+      cursor: pointer;
+      box-shadow: 0 8px 0 #cc9900;
+      transition: transform 0.1s, box-shadow 0.1s;
+      font-family: inherit;
+      font-weight: bold;
+    }
+
+    #start-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #cc9900;
+    }
+
+    #photo-label {
+      font-size: clamp(1rem, 4vw, 1.5rem);
+      padding: 14px 30px;
+      background: rgba(255,255,255,0.3);
+      color: white;
+      border: 3px dashed rgba(255,255,255,0.8);
+      border-radius: 60px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: bold;
+      text-shadow: 1px 1px 0 #3377bb;
+      transition: background 0.2s;
+    }
+
+    #photo-label:hover { background: rgba(255,255,255,0.45); }
+
+    #photo-preview {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 5px solid white;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      display: none;
+    }
+
+    /* Charlie's photo in the celebration banner */
+    #charlie-celebration-photo {
+      width: clamp(100px, 25vw, 160px);
+      height: clamp(100px, 25vw, 160px);
+      border-radius: 50%;
+      object-fit: cover;
+      border: 6px solid white;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+      display: none;
+      animation: photoBounce 0.6s ease-out 0.3s both;
+    }
+
+    @keyframes photoBounce {
+      0%   { transform: scale(0) rotate(-10deg); }
+      70%  { transform: scale(1.15) rotate(5deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    .emoji-row {
+      font-size: clamp(2rem, 8vw, 4rem);
+      animation: bounce 1s infinite alternate;
+    }
+
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to   { transform: translateY(-15px); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Clouds background -->
+  <div id="clouds">
+    <div class="cloud" style="top:10%;animation-duration:18s;animation-delay:0s">☁️</div>
+    <div class="cloud" style="top:25%;animation-duration:24s;animation-delay:-8s">☁️</div>
+    <div class="cloud" style="top:5%;animation-duration:20s;animation-delay:-14s">☁️</div>
+    <div class="cloud" style="top:40%;animation-duration:30s;animation-delay:-5s">☁️</div>
+  </div>
+
+  <!-- Start screen -->
+  <div id="start-screen">
+    <div class="emoji-row">🫧 🫧 🫧</div>
+    <h1>Pop the<br>Bubbles!</h1>
+    <img id="photo-preview" src="" alt="Charlie" />
+    <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="loadPhoto(event)" />
+    <label for="photo-input" id="photo-label">📸 Add Charlie's Photo!</label>
+    <p>Tap the bubbles<br>before they fly away!</p>
+    <button id="start-btn" onclick="startGame()">▶ Play!</button>
+  </div>
+
+  <!-- 50-pop celebration -->
+  <div id="celebration-overlay"></div>
+  <div id="celebration-banner">
+    <img id="charlie-celebration-photo" src="" alt="Charlie" />
+    <h2>🎉 50 POPS! 🎉</h2>
+    <p>Charlie is INCREDIBLE!!</p>
+  </div>
+
+  <!-- Game Over screen -->
+  <div id="gameover-screen">
+    <div style="font-size:clamp(3rem,12vw,6rem)">😢🫧</div>
+    <h1>Oh no!</h1>
+    <div class="well-done">The bubbles got away!</div>
+    <div class="final-score" id="final-score-text">You popped 0!</div>
+    <button id="replay-btn" onclick="startGame()">▶ Play Again!</button>
+  </div>
+
+  <!-- Score -->
+  <div id="score-display">🫧 0</div>
+  <div id="title">POP THE BUBBLES!</div>
+  <div id="lives-display">❤️❤️❤️❤️❤️</div>
+
+  <script>
+    const COLORS = [
+      { bg: 'radial-gradient(circle at 35% 35%, #ff9999, #ff4444)', border: '#cc0000', splat: '#ff6666' },
+      { bg: 'radial-gradient(circle at 35% 35%, #ffcc66, #ff9900)', border: '#cc7700', splat: '#ffbb33' },
+      { bg: 'radial-gradient(circle at 35% 35%, #99ee99, #33bb33)', border: '#228822', splat: '#66dd66' },
+      { bg: 'radial-gradient(circle at 35% 35%, #aaddff, #3399ff)', border: '#1166cc', splat: '#66bbff' },
+      { bg: 'radial-gradient(circle at 35% 35%, #dd99ff, #aa33ff)', border: '#7700cc', splat: '#cc66ff' },
+      { bg: 'radial-gradient(circle at 35% 35%, #ffaacc, #ff3399)', border: '#cc0077', splat: '#ff77bb' },
+      { bg: 'radial-gradient(circle at 35% 35%, #ffffaa, #ffee00)', border: '#ccaa00', splat: '#ffee55' },
+      { bg: 'radial-gradient(circle at 35% 35%, #ffcc99, #ff7733)', border: '#cc4400', splat: '#ffaa55' },
+    ];
+
+    const EMOJIS = ['😄','🐸','🌟','🎈','🦄','🐙','🐣','🦋','🌈','🍭','🐠','🦊','🍄','🎀'];
+    const POPS = ['💥','✨','🌟','⭐','💫','🎉'];
+
+    const AFFIRMATIONS = [
+      "Charlie is awesome!",
+      "Great job, Charlie!",
+      "You're amazing, Charlie!",
+      "Wow, Charlie, you rock!",
+      "Charlie is a superstar!",
+      "Nice one, Charlie!",
+      "Charlie is so smart!",
+      "Keep going, Charlie, you're crushing it!",
+      "Charlie is incredible!",
+      "You're on fire, Charlie!",
+      "We're so proud of you, Charlie!",
+    ];
+
+    let lastAffirmationIndex = -1;
+    let charliePhotoSrc = null;
+
+    function loadPhoto(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        charliePhotoSrc = e.target.result;
+        const preview = document.getElementById('photo-preview');
+        preview.src = charliePhotoSrc;
+        preview.style.display = 'block';
+        const label = document.getElementById('photo-label');
+        label.textContent = '📸 Change Photo';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    let speechUnlocked = false;
+
+    function unlockSpeech() {
+      // iOS requires speechSynthesis to be triggered directly inside a user gesture.
+      // We speak a silent utterance on the Play tap to "unlock" the API for later calls.
+      if (!window.speechSynthesis || speechUnlocked) return;
+      const silent = new SpeechSynthesisUtterance('');
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+      speechUnlocked = true;
+    }
+
+    function speakAffirmation() {
+      if (!window.speechSynthesis) return;
+      // Cancel anything already speaking so it doesn't queue up
+      window.speechSynthesis.cancel();
+
+      // Pick a random affirmation (avoid repeating the same one twice)
+      let idx;
+      do { idx = Math.floor(Math.random() * AFFIRMATIONS.length); }
+      while (idx === lastAffirmationIndex && AFFIRMATIONS.length > 1);
+      lastAffirmationIndex = idx;
+
+      const utter = new SpeechSynthesisUtterance(AFFIRMATIONS[idx]);
+      utter.pitch = 1.3;
+      utter.rate = 0.9;
+      utter.volume = 1;
+
+      // Pick a friendly English voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const friendly = voices.find(v => /samantha|karen|moira|tessa|victoria|zira|hazel/i.test(v.name))
+                    || voices.find(v => v.lang.startsWith('en'));
+      if (friendly) utter.voice = friendly;
+
+      // iOS workaround: resume in case the synthesis engine paused in the background
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utter);
+    }
+
+    let score = 0;
+    let misses = 0;
+    const MAX_MISSES = 5;
+    let gameRunning = false;
+    let spawnInterval, speedInterval;
+    let spawnDelay = 1600;
+    let bubbleDuration = 5000;
+    let activeBubbles = 0;
+
+    function updateLives() {
+      const remaining = MAX_MISSES - misses;
+      const el = document.getElementById('lives-display');
+      el.textContent = '❤️'.repeat(remaining) + '🖤'.repeat(misses);
+      el.classList.remove('shake');
+      void el.offsetWidth;
+      if (misses > 0) el.classList.add('shake');
+    }
+
+    function missedBubble() {
+      if (!gameRunning) return;
+      misses++;
+      updateLives();
+      if (misses >= MAX_MISSES) {
+        endGame();
+      }
+    }
+
+    function endGame() {
+      gameRunning = false;
+      clearInterval(spawnInterval);
+      clearInterval(speedInterval);
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+      // Remove any remaining bubbles
+      document.querySelectorAll('.bubble').forEach(b => b.remove());
+
+      // Show game over screen
+      const go = document.getElementById('gameover-screen');
+      document.getElementById('final-score-text').textContent =
+        score === 1 ? 'You popped 1 bubble!' : `You popped ${score} bubbles!`;
+      go.style.display = 'flex';
+    }
+
+    // Audio context for fun sounds
+    let audioCtx;
+    function initAudio() {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+    }
+
+    function playPop(pitch = 1) {
+      if (!audioCtx) return;
+      try {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.setValueAtTime(400 * pitch, audioCtx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(800 * pitch, audioCtx.currentTime + 0.08);
+        g.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+        o.start(); o.stop(audioCtx.currentTime + 0.25);
+      } catch(e) {}
+    }
+
+    function startGame() {
+      initAudio();
+      unlockSpeech();
+      document.getElementById('start-screen').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+      score = 0;
+      misses = 0;
+      spawnDelay = 1600;
+      bubbleDuration = 5000;
+      lastAffirmationIndex = -1;
+      updateScore();
+      updateLives();
+      gameRunning = true;
+      spawnInterval = setInterval(spawnBubble, spawnDelay);
+      // Gradually get harder
+      speedInterval = setInterval(() => {
+        if (spawnDelay > 700) {
+          spawnDelay = Math.max(700, spawnDelay - 80);
+          clearInterval(spawnInterval);
+          spawnInterval = setInterval(spawnBubble, spawnDelay);
+        }
+        if (bubbleDuration > 3000) bubbleDuration -= 150;
+      }, 8000);
+    }
+
+    function spawnBubble() {
+      if (!gameRunning) return;
+      const size = 80 + Math.random() * 90; // 80–170px
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+      const duration = bubbleDuration + Math.random() * 1500;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        left: ${Math.random() * (window.innerWidth - size)}px;
+        background: ${color.bg};
+        border: 4px solid ${color.border};
+        box-shadow: inset -12px -12px 20px rgba(0,0,0,0.12), 4px 4px 12px rgba(0,0,0,0.15);
+        animation-duration: ${duration}ms;
+        font-size: ${size * 0.4}px;
+      `;
+      bubble.dataset.color = JSON.stringify(color);
+      bubble.innerHTML = emoji;
+
+      bubble.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        popBubble(bubble, color);
+      });
+
+      document.body.appendChild(bubble);
+      activeBubbles++;
+
+      // Remove when animation ends — if still in DOM it was missed
+      bubble.addEventListener('animationend', () => {
+        if (bubble.parentNode) {
+          bubble.remove();
+          activeBubbles--;
+          missedBubble();
+        }
+      });
+    }
+
+    function popBubble(bubble, color) {
+      if (!bubble.parentNode) return;
+      const rect = bubble.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+
+      bubble.remove();
+      activeBubbles--;
+
+      // Splat effect
+      const splat = document.createElement('div');
+      splat.className = 'splat';
+      splat.style.cssText = `
+        left: ${cx - rect.width / 2}px;
+        top: ${cy - rect.height / 2}px;
+        width: ${rect.width}px;
+        height: ${rect.height}px;
+        background: ${color.splat};
+        opacity: 0.7;
+      `;
+      document.body.appendChild(splat);
+      setTimeout(() => splat.remove(), 600);
+
+      // Star/emoji burst
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.style.cssText = `left: ${cx - 20}px; top: ${cy - 20}px;`;
+      star.textContent = POPS[Math.floor(Math.random() * POPS.length)];
+      document.body.appendChild(star);
+      setTimeout(() => star.remove(), 800);
+
+      // Sound
+      playPop(0.8 + Math.random() * 0.8);
+
+      // Score
+      score++;
+      updateScore();
+    }
+
+    function updateScore() {
+      const el = document.getElementById('score-display');
+      el.textContent = `🫧 ${score}`;
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+
+      if (score === 50) {
+        triggerCelebration();
+      } else if (score > 0 && score % 10 === 0) {
+        // Every 10 pops, say an affirmation (skip at 50 — celebration handles it)
+        speakAffirmation();
+      }
+    }
+
+    function triggerCelebration() {
+      // Show banner
+      const banner = document.getElementById('celebration-banner');
+      const celebPhoto = document.getElementById('charlie-celebration-photo');
+      if (charliePhotoSrc) {
+        celebPhoto.src = charliePhotoSrc;
+        celebPhoto.style.display = 'block';
+      } else {
+        celebPhoto.style.display = 'none';
+      }
+      banner.style.display = 'block';
+
+      // Speak a special message
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance("50 bubbles!! Charlie is absolutely incredible! We are so proud of you!");
+        utter.pitch = 1.4;
+        utter.rate = 0.85;
+        utter.volume = 1;
+        const voices = window.speechSynthesis.getVoices();
+        const friendly = voices.find(v => /samantha|karen|moira|tessa|victoria|zira|hazel/i.test(v.name))
+                      || voices.find(v => v.lang.startsWith('en'));
+        if (friendly) utter.voice = friendly;
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.speak(utter);
+      }
+
+      // Launch confetti
+      const colors = ['#FF4444','#FF9900','#FFD700','#44DD44','#4499FF','#DD44FF','#FF44BB','#00DDDD'];
+      const fireworkEmojis = ['🌟','✨','💥','🎉','⭐','🎊','💫','🌈'];
+
+      for (let i = 0; i < 120; i++) {
+        setTimeout(() => {
+          const piece = document.createElement('div');
+          piece.className = 'confetti-piece';
+          const isCircle = Math.random() > 0.5;
+          piece.style.cssText = `
+            left: ${Math.random() * 100}vw;
+            top: -20px;
+            background: ${colors[Math.floor(Math.random() * colors.length)]};
+            border-radius: ${isCircle ? '50%' : '2px'};
+            width: ${8 + Math.random() * 14}px;
+            height: ${8 + Math.random() * 14}px;
+            animation-duration: ${1.5 + Math.random() * 2.5}s;
+            animation-delay: 0s;
+          `;
+          document.body.appendChild(piece);
+          setTimeout(() => piece.remove(), 4500);
+        }, i * 25);
+      }
+
+      // Firework bursts at random spots
+      for (let i = 0; i < 20; i++) {
+        setTimeout(() => {
+          const fw = document.createElement('div');
+          fw.className = 'firework';
+          fw.textContent = fireworkEmojis[Math.floor(Math.random() * fireworkEmojis.length)];
+          fw.style.cssText = `
+            left: ${10 + Math.random() * 80}vw;
+            top: ${10 + Math.random() * 70}vh;
+            animation-duration: ${0.6 + Math.random() * 0.5}s;
+          `;
+          document.body.appendChild(fw);
+          setTimeout(() => fw.remove(), 1200);
+        }, i * 120);
+      }
+
+      // Hide banner after 3.5s
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 3500);
+    }
+
+    // Pre-load voices (some browsers need this triggered early)
+    if (window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+    }
+
+    // Prevent scrolling on touch
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  </script>
+</body>
+</html>

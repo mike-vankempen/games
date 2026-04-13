@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🚽 Stall or Fall!</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fef9c3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 14px 40px;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2rem;
+      text-align: center;
+      text-shadow: 2px 2px 0 #a16207;
+      color: #92400e;
+      margin-bottom: 3px;
+    }
+    .subtitle {
+      font-size: 0.88rem;
+      color: #78350f;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    .score-bar {
+      display: flex;
+      gap: 20px;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #44403c;
+      margin-bottom: 12px;
+      background: #fde68a;
+      border: 3px solid #f59e0b;
+      border-radius: 20px;
+      padding: 7px 20px;
+    }
+    .score-bar span { color: #92400e; }
+    .instructions {
+      font-size: 1rem;
+      color: #57534e;
+      text-align: center;
+      margin-bottom: 10px;
+      font-weight: 600;
+      min-height: 22px;
+    }
+
+    /* ====== SCENE ====== */
+    .scene {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 3px solid #a8a29e;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    /* WALL */
+    .wall {
+      display: flex;
+      gap: 7px;
+      padding: 10px 8px 0;
+      background: #e2e0dd;
+      background-image:
+        linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+
+    /* STALLS */
+    .stall {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      overflow: hidden;
+      border: 3px solid #a8a29e;
+      border-bottom: none;
+      transition: transform 0.1s, border-color 0.15s;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .stall:active { transform: scale(0.95); }
+    .stall.disabled { cursor: default; pointer-events: none; }
+
+    .stall-label {
+      background: #78716c;
+      color: #fef9c3;
+      font-size: 0.95rem;
+      font-weight: 900;
+      text-align: center;
+      padding: 4px 0;
+      letter-spacing: 1px;
+    }
+    .stall-body {
+      min-height: 120px;
+      background: #f5f5f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      position: relative;
+      transition: background 0.3s;
+    }
+    /* door handle nub */
+    .stall-body::after {
+      content: '';
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 5px;
+      height: 18px;
+      background: #a8a29e;
+      border-radius: 3px;
+    }
+    .stall.correct .stall-body { background: #dcfce7; }
+    .stall.wrong  .stall-body { background: #fee2e2; }
+
+    /* BASEBOARD */
+    .baseboard { height: 9px; background: #78716c; }
+
+    /* FLOOR */
+    .floor {
+      height: 100px;
+      background: #f0eee8;
+      background-image:
+        linear-gradient(90deg, #e2e0dd 1px, transparent 1px),
+        linear-gradient(#e2e0dd 1px, transparent 1px);
+      background-size: 38px 38px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ====== CARTOON CHARACTER ====== */
+    #char {
+      position: absolute;
+      bottom: 6px;
+      left: -80px;
+      width: 54px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0px;
+      transition: left 0.62s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Head */
+    #char-head {
+      width: 38px;
+      height: 38px;
+      background: #fcd34d;
+      border-radius: 50%;
+      border: 3px solid #b45309;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      position: relative;
+      z-index: 2;
+    }
+    /* Body */
+    #char-body {
+      width: 28px;
+      height: 22px;
+      background: #3b82f6;
+      border-radius: 5px 5px 3px 3px;
+      border: 2px solid #1d4ed8;
+      margin-top: -3px;
+      position: relative;
+      z-index: 1;
+    }
+    /* Arms */
+    #char-body::before,
+    #char-body::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      width: 8px;
+      height: 16px;
+      background: #3b82f6;
+      border: 2px solid #1d4ed8;
+      border-radius: 4px;
+    }
+    #char-body::before { left: -10px; transform-origin: top center; }
+    #char-body::after  { right: -10px; transform-origin: top center; }
+
+    /* Legs wrapper */
+    #char-legs {
+      display: flex;
+      gap: 4px;
+      margin-top: 1px;
+    }
+    .leg {
+      width: 9px;
+      height: 18px;
+      background: #1e40af;
+      border-radius: 4px;
+      transform-origin: top center;
+    }
+    /* Shoes */
+    .shoe {
+      width: 13px;
+      height: 7px;
+      background: #1c1917;
+      border-radius: 3px 6px 3px 2px;
+      margin-top: 1px;
+      margin-left: -2px;
+    }
+
+    /* ===== CHARACTER ANIMATIONS ===== */
+    @keyframes walkBob {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-6px); }
+    }
+    @keyframes legSwingL {
+      0%, 100% { transform: rotate(-22deg); }
+      50%       { transform: rotate(22deg); }
+    }
+    @keyframes legSwingR {
+      0%, 100% { transform: rotate(22deg); }
+      50%       { transform: rotate(-22deg); }
+    }
+    @keyframes armSwingL {
+      0%, 100% { transform: rotate(20deg); }
+      50%       { transform: rotate(-20deg); }
+    }
+    @keyframes armSwingR {
+      0%, 100% { transform: rotate(-20deg); }
+      50%       { transform: rotate(20deg); }
+    }
+    @keyframes happyJump {
+      0%, 100% { transform: translateY(0) rotate(0deg) scale(1); }
+      30%       { transform: translateY(-18px) rotate(-8deg) scale(1.08); }
+      60%       { transform: translateY(-10px) rotate(6deg) scale(1.05); }
+    }
+    @keyframes sadShake {
+      0%, 100% { transform: rotate(0deg); }
+      15%       { transform: rotate(-14deg) translateX(-3px); }
+      35%       { transform: rotate(14deg) translateX(3px); }
+      55%       { transform: rotate(-9deg) translateX(-2px); }
+      75%       { transform: rotate(9deg) translateX(2px); }
+    }
+
+    #char.walking            { animation: walkBob 0.3s linear infinite; }
+    #char.walking #char-body::before { animation: armSwingL 0.3s linear infinite; }
+    #char.walking #char-body::after  { animation: armSwingR 0.3s linear infinite; }
+    #char.walking .leg:first-child   { animation: legSwingL 0.3s linear infinite; }
+    #char.walking .leg:last-child    { animation: legSwingR 0.3s linear infinite; }
+
+    #char.dancing { animation: happyJump 0.45s ease 3; }
+    #char.shaking { animation: sadShake 0.45s ease; }
+
+    /* ====== BURST EMOJI ====== */
+    #burst {
+      position: absolute;
+      font-size: 2.4rem;
+      opacity: 0;
+      pointer-events: none;
+      /* left set by JS */
+    }
+    @keyframes burstBad {
+      0%   { opacity: 0; transform: translate(-50%, 0px) scale(0) rotate(-25deg); }
+      50%  { opacity: 1; transform: translate(-50%, -30px) scale(1.6) rotate(15deg); }
+      100% { opacity: 1; transform: translate(-50%, -42px) scale(1.1) rotate(-5deg); }
+    }
+    @keyframes burstGood {
+      0%   { opacity: 0; transform: translate(-50%, 0px) scale(0); }
+      55%  { opacity: 1; transform: translate(-50%, -32px) scale(1.5); }
+      100% { opacity: 1; transform: translate(-50%, -42px) scale(1.05); }
+    }
+    #burst.bad  { animation: burstBad  0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    #burst.good { animation: burstGood 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+    /* ====== STREAK ====== */
+    .streak {
+      font-size: 0.9rem;
+      color: #92400e;
+      min-height: 20px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    /* ====== RESULT OVERLAY ====== */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.show { display: flex; }
+
+    @keyframes cardPop  { from { transform: scale(0.4) rotate(-4deg); opacity: 0; } to { transform: scale(1) rotate(0deg); opacity: 1; } }
+    @keyframes emojiBounce { 0%,100%{transform:translateY(0)} 30%{transform:translateY(-20px)} 65%{transform:translateY(-8px)} }
+    @keyframes emojiShake  { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-12px) rotate(-4deg)} 40%{transform:translateX(12px) rotate(4deg)} 60%{transform:translateX(-7px)} 80%{transform:translateX(7px)} }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 26px 22px 22px;
+      text-align: center;
+      max-width: 295px;
+      width: 86%;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+      animation: cardPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .card.win  { border: 5px solid #22c55e; }
+    .card.lose { border: 5px solid #ef4444; }
+
+    .card-emoji { font-size: 4.2rem; display: block; margin-bottom: 8px; }
+    .card-emoji.bounce { animation: emojiBounce 0.65s ease; }
+    .card-emoji.shake  { animation: emojiShake 0.55s ease; }
+
+    .card-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 7px; }
+    .card.win  .card-title { color: #16a34a; }
+    .card.lose .card-title { color: #dc2626; }
+    .card-msg { font-size: 0.93rem; color: #57534e; margin-bottom: 18px; line-height: 1.5; }
+
+    .btn-again {
+      background: #f59e0b;
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 13px 32px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #b45309;
+      transition: transform 0.1s, box-shadow 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-again:active { transform: translateY(3px); box-shadow: 0 1px 0 #b45309; }
+
+    @media (hover: hover) {
+      .stall:not(.disabled):hover { transform: translateY(-3px); border-color: #f59e0b; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🚽 Stall or Fall!</h1>
+  <p class="subtitle">One stall is safe… pick wisely! 💀</p>
+
+  <div class="score-bar">
+    ✅ Wins: <span id="wins">0</span>&nbsp;&nbsp;💀 Fails: <span id="fails">0</span>
+  </div>
+
+  <p class="instructions" id="instructions">Tap a stall!</p>
+
+  <div class="scene">
+    <!-- WALL + STALLS -->
+    <div class="wall" id="stallsRow">
+      <div class="stall" id="stall-0" onclick="pick(0)">
+        <div class="stall-label">1</div>
+        <div class="stall-body" id="door-0">🚽</div>
+      </div>
+      <div class="stall" id="stall-1" onclick="pick(1)">
+        <div class="stall-label">2</div>
+        <div class="stall-body" id="door-1">🚽</div>
+      </div>
+      <div class="stall" id="stall-2" onclick="pick(2)">
+        <div class="stall-label">3</div>
+        <div class="stall-body" id="door-2">🚽</div>
+      </div>
+    </div>
+    <div class="baseboard"></div>
+
+    <!-- FLOOR / STAGE -->
+    <div class="floor" id="floor">
+      <!-- Cartoon character -->
+      <div id="char">
+        <div id="char-head"><span id="char-face">😐</span></div>
+        <div id="char-body"></div>
+        <div id="char-legs">
+          <div class="leg" id="leg-l"></div>
+          <div class="leg" id="leg-r"></div>
+        </div>
+      </div>
+      <!-- Burst emoji -->
+      <div id="burst"></div>
+    </div>
+  </div>
+
+  <div class="streak" id="streak"></div>
+
+  <!-- CONFETTI CANVAS -->
+  <canvas id="confetti-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:200;display:none;"></canvas>
+
+  <!-- YOU WIN SCREEN -->
+  <div id="youwin-screen" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;flex-direction:column;">
+    <div style="background:white;border-radius:28px;padding:36px 28px 28px;text-align:center;max-width:300px;width:88%;border:6px solid #f59e0b;box-shadow:0 12px 50px rgba(0,0,0,0.5);animation:cardPop 0.4s cubic-bezier(0.34,1.56,0.64,1);">
+      <div style="font-size:4.5rem;margin-bottom:8px;">🏆</div>
+      <div style="font-size:2rem;font-weight:900;color:#92400e;margin-bottom:6px;">YOU WIN!</div>
+      <div style="font-size:1rem;color:#57534e;margin-bottom:4px;">Charlie got <strong>10 wins!</strong></div>
+      <div style="font-size:0.9rem;color:#a8a29e;margin-bottom:22px;">Starting over in <span id="countdown">5</span>s…</div>
+      <button class="btn-again" onclick="bigRestart()" style="width:100%;">🎉 Play Again Now!</button>
+    </div>
+  </div>
+
+  <!-- RESULT OVERLAY -->
+  <div class="overlay" id="overlay">
+    <div class="card" id="card">
+      <span class="card-emoji" id="card-emoji"></span>
+      <div class="card-title" id="card-title"></div>
+      <div class="card-msg"   id="card-msg"></div>
+      <button class="btn-again" onclick="restart()">🔄 Try Again!</button>
+    </div>
+  </div>
+
+<script>
+  let wins = 0, fails = 0, streak = 0;
+  let correct = Math.floor(Math.random() * 3);
+  let busy = false;
+
+  const WIN_MSGS = [
+    { title: "MADE IT! 🎉",    msg: "Sweet relief. You chose wisely. 😌" },
+    { title: "SAFE ZONE! ✅",  msg: "Clean seat, no problems. Bathroom genius." },
+    { title: "PERFECT PICK! 💯", msg: "Right stall, right time. You're a legend." },
+    { title: "OH YEAH! 🏆",    msg: "The toilet gods smile upon you." },
+    { title: "SO FRESH! 🌈",   msg: "That stall was CLEAN. Living your best life." },
+  ];
+  const POOP_MSGS = [
+    { title: "OH NO! 💩",       msg: "You didn't make it... it happened. In your pants. 💀" },
+    { title: "CODE BROWN! 🚨",  msg: "That stall was taken. You waited too long. RIP pants." },
+    { title: "THE WORST! 😭",   msg: "Wrong stall. Total accident. Everyone heard." },
+    { title: "YIKES! 💥",       msg: "Stall was locked! You just couldn't hold it... oops." },
+    { title: "PANTS DOWN! 🫠",  msg: "Wrong stall. Now everyone knows your shame." },
+  ];
+  const PUKE_MSGS = [
+    { title: "BLARRGH! 🤮",       msg: "That stall smelled SO bad you lost it. All over the floor." },
+    { title: "CODE GREEN! 🟢",    msg: "Opened the door and... yeah. You couldn't unsee it." },
+    { title: "TOTAL WIPEOUT! 🌊", msg: "Whatever was in that stall should be illegal." },
+    { title: "ABORT! ABORT! 🚀",  msg: "You opened the door. Your stomach decided: NOPE." },
+    { title: "BIG MISTAKE! ❌",   msg: "Something unspeakable was inside. You're still recovering." },
+  ];
+
+  function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ====== SOUND ENGINE ======
+  let audioCtx = null;
+  function getCtx() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  // ====== CONFETTI ======
+  let confettiAnim = null;
+  const COLORS = ['#f59e0b','#ef4444','#22c55e','#3b82f6','#a855f7','#ec4899','#14b8a6','#facc15'];
+
+  function launchConfetti() {
+    const canvas = document.getElementById('confetti-canvas');
+    canvas.style.display = 'block';
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+
+    const pieces = Array.from({length: 120}, () => ({
+      x:   Math.random() * canvas.width,
+      y:   -10 - Math.random() * canvas.height * 0.5,
+      w:   6 + Math.random() * 8,
+      h:   10 + Math.random() * 8,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      rot:  Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.2,
+      vx:  (Math.random() - 0.5) * 3,
+      vy:  2.5 + Math.random() * 3.5,
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let alive = false;
+      pieces.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.rotV;
+        if (p.y < canvas.height + 20) alive = true;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+      });
+      if (alive) confettiAnim = requestAnimationFrame(draw);
+      else stopConfetti();
+    }
+    if (confettiAnim) cancelAnimationFrame(confettiAnim);
+    draw();
+  }
+
+  function stopConfetti() {
+    if (confettiAnim) { cancelAnimationFrame(confettiAnim); confettiAnim = null; }
+    const canvas = document.getElementById('confetti-canvas');
+    canvas.style.display = 'none';
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // ====== YOU WIN SCREEN ======
+  let countdownTimer = null;
+
+  function showYouWin() {
+    // Close any open result card first
+    document.getElementById('overlay').classList.remove('show');
+    const screen = document.getElementById('youwin-screen');
+    screen.style.display = 'flex';
+    launchConfetti();
+
+    // Speech
+    try {
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance('You win!');
+      utt.rate = 0.9; utt.pitch = 1.5; utt.volume = 1;
+      window.speechSynthesis.speak(utt);
+    } catch(e) {}
+
+    // Countdown
+    let secs = 5;
+    document.getElementById('countdown').textContent = secs;
+    countdownTimer = setInterval(() => {
+      secs--;
+      document.getElementById('countdown').textContent = secs;
+      if (secs <= 0) bigRestart();
+    }, 1000);
+  }
+
+  function bigRestart() {
+    clearInterval(countdownTimer);
+    stopConfetti();
+    document.getElementById('youwin-screen').style.display = 'none';
+    wins = 0; fails = 0; streak = 0;
+    document.getElementById('wins').textContent = 0;
+    document.getElementById('fails').textContent = 0;
+    restart(); // resets board + character
+  }
+
+  function sayGoCharlie() {
+    try {
+      window.speechSynthesis.cancel(); // clear any queued speech
+      const phrases = ['Go Charlie!', 'Go Charlie!', 'Go Charlie!'];
+      phrases.forEach((text, i) => {
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.rate  = 1.15;
+        utt.pitch = 1.4;
+        utt.volume = 1;
+        window.speechSynthesis.speak(utt);
+      });
+    } catch(e) {}
+  }
+
+  function playFart() {
+    try {
+      const ctx = getCtx();
+      const t   = ctx.currentTime;
+      // Random fart length: short ripper or long sputtery one
+      const dur = 0.35 + Math.random() * 0.55;
+
+      // White noise source
+      const bufSize = Math.floor(ctx.sampleRate * dur);
+      const buf     = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data    = buf.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+
+      // Bandpass filter sweeps high → low (pressure releasing = pitch drops)
+      const filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(380 + Math.random() * 80, t);
+      filt.frequency.exponentialRampToValueAtTime(55, t + dur);
+      filt.Q.value = 1.4;
+
+      // Sawtooth oscillator for extra buzz/flap
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(160 + Math.random() * 50, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + dur);
+
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.28, t);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, t + dur * 0.85);
+
+      // Master gain with quick attack and decay
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.001, t);
+      master.gain.linearRampToValueAtTime(0.9, t + 0.02);  // fast attack
+      master.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+      noise.connect(filt);
+      filt.connect(master);
+      osc.connect(oscGain);
+      oscGain.connect(master);
+      master.connect(ctx.destination);
+
+      noise.start(t); osc.start(t);
+      noise.stop(t + dur); osc.stop(t + dur);
+    } catch(e) {}
+  }
+
+  function playPuke() {
+    try {
+      const ctx = getCtx();
+      const t = ctx.currentTime;
+      // Two-part sound: heave (rising pitch) then splat (descending wet noise)
+      const heaveDur = 0.25;
+      const splatDur = 0.45;
+
+      // --- HEAVE: rising pitched moan ---
+      const heaveOsc = ctx.createOscillator();
+      heaveOsc.type = 'sine';
+      heaveOsc.frequency.setValueAtTime(120, t);
+      heaveOsc.frequency.exponentialRampToValueAtTime(320, t + heaveDur);
+
+      const heaveGain = ctx.createGain();
+      heaveGain.gain.setValueAtTime(0.001, t);
+      heaveGain.gain.linearRampToValueAtTime(0.4, t + 0.05);
+      heaveGain.gain.exponentialRampToValueAtTime(0.001, t + heaveDur);
+
+      heaveOsc.connect(heaveGain);
+      heaveGain.connect(ctx.destination);
+      heaveOsc.start(t);
+      heaveOsc.stop(t + heaveDur);
+
+      // --- SPLAT: filtered noise that tumbles down ---
+      const splatStart = t + heaveDur + 0.04;
+      const bufSize2   = Math.floor(ctx.sampleRate * splatDur);
+      const buf2       = ctx.createBuffer(1, bufSize2, ctx.sampleRate);
+      const data2      = buf2.getChannelData(0);
+      for (let i = 0; i < bufSize2; i++) data2[i] = Math.random() * 2 - 1;
+      const splat = ctx.createBufferSource();
+      splat.buffer = buf2;
+
+      const splatFilt = ctx.createBiquadFilter();
+      splatFilt.type = 'lowpass';
+      splatFilt.frequency.setValueAtTime(900, splatStart);
+      splatFilt.frequency.exponentialRampToValueAtTime(150, splatStart + splatDur);
+      splatFilt.Q.value = 3;
+
+      const splatGain = ctx.createGain();
+      splatGain.gain.setValueAtTime(0.001, splatStart);
+      splatGain.gain.linearRampToValueAtTime(0.75, splatStart + 0.03);
+      splatGain.gain.exponentialRampToValueAtTime(0.001, splatStart + splatDur);
+
+      splat.connect(splatFilt);
+      splatFilt.connect(splatGain);
+      splatGain.connect(ctx.destination);
+      splat.start(splatStart);
+      splat.stop(splatStart + splatDur);
+    } catch(e) {}
+  }
+
+  function pick(idx) {
+    if (busy) return;
+    busy = true;
+
+    document.getElementById('instructions').textContent = '🚶 Walking over…';
+    document.querySelectorAll('.stall').forEach(s => s.classList.add('disabled'));
+
+    const charEl   = document.getElementById('char');
+    const burstEl  = document.getElementById('burst');
+    const faceEl   = document.getElementById('char-face');
+    const floorEl  = document.getElementById('floor');
+    const stallEl  = document.getElementById('stall-' + idx);
+
+    // Calculate target X: center char under chosen stall
+    const sr = stallEl.getBoundingClientRect();
+    const fr = floorEl.getBoundingClientRect();
+    const stallCenterX = sr.left - fr.left + sr.width / 2;
+    const targetX = stallCenterX - 27; // 27 = half char width (54px)
+
+    // Pre-position burst at stall center (before animation fires)
+    burstEl.style.left = stallCenterX + 'px';
+    burstEl.style.bottom = '52px';
+
+    // Walk!
+    faceEl.textContent = '😬';
+    charEl.classList.add('walking');
+    charEl.style.left = targetX + 'px';
+
+    const isWin = idx === correct;
+
+    setTimeout(() => {
+      charEl.classList.remove('walking');
+
+      if (isWin) {
+        wins++;
+        streak++;
+        document.getElementById('wins').textContent = wins;
+        faceEl.textContent = '🤩';
+        charEl.classList.add('dancing');
+        document.getElementById('char-body').style.background = '#22c55e';
+        document.getElementById('char-body').style.borderColor = '#15803d';
+        burstEl.textContent = '🎉';
+        burstEl.className = 'good';
+        document.getElementById('stall-' + idx).classList.add('correct');
+        document.getElementById('instructions').textContent = '✅ You picked right!';
+        if (wins === 10) {
+          setTimeout(() => showYouWin(), 900);
+        } else {
+          if (wins % 5 === 0) sayGoCharlie();
+          setTimeout(() => showCard(true), 960);
+        }
+      } else {
+        fails++;
+        streak = 0;
+        document.getElementById('fails').textContent = fails;
+        const isPoop = Math.random() < 0.5;
+        faceEl.textContent = '😱';
+        charEl.classList.add('shaking');
+        document.getElementById('char-body').style.background = '#ef4444';
+        document.getElementById('char-body').style.borderColor = '#b91c1c';
+        burstEl.textContent = isPoop ? '💩' : '🤮';
+        burstEl.className = 'bad';
+        if (isPoop) playFart(); else playPuke();
+        document.getElementById('stall-' + idx).classList.add('wrong');
+        document.getElementById('stall-' + correct).classList.add('correct');
+        document.getElementById('door-' + idx).textContent = isPoop ? '💩' : '🤮';
+        document.getElementById('instructions').textContent = isPoop ? '💩 Uh oh...' : '🤮 Oh gross!';
+        const m = rand(isPoop ? POOP_MSGS : PUKE_MSGS);
+        setTimeout(() => showCard(false, isPoop ? '💩' : '🤮', m.title, m.msg), 1050);
+      }
+
+      updateStreak();
+    }, 640);
+  }
+
+  function showCard(isWin, emoji, title, msg) {
+    if (isWin) {
+      const m = rand(WIN_MSGS);
+      emoji = '🎉'; title = m.title; msg = m.msg;
+    }
+    const card = document.getElementById('card');
+    card.className = 'card ' + (isWin ? 'win' : 'lose');
+    const em = document.getElementById('card-emoji');
+    em.textContent = emoji;
+    em.className = 'card-emoji ' + (isWin ? 'bounce' : 'shake');
+    document.getElementById('card-title').textContent = title;
+    document.getElementById('card-msg').textContent   = msg;
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function restart() {
+    busy = false;
+    correct = Math.floor(Math.random() * 3);
+
+    // Reset stalls
+    for (let i = 0; i < 3; i++) {
+      const s = document.getElementById('stall-' + i);
+      s.classList.remove('disabled', 'correct', 'wrong');
+      document.getElementById('door-' + i).textContent = '🚽';
+    }
+
+    // Snap char back off-screen (no transition)
+    const charEl = document.getElementById('char');
+    charEl.style.transition = 'none';
+    charEl.style.left = '-80px';
+    charEl.className = '';
+    document.getElementById('char-face').textContent = '😐';
+    const body = document.getElementById('char-body');
+    body.style.background = '';
+    body.style.borderColor = '';
+
+    // Reset burst
+    const burstEl = document.getElementById('burst');
+    burstEl.className = '';
+    burstEl.textContent = '';
+
+    // Re-enable transition after two frames
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      charEl.style.transition = 'left 0.62s cubic-bezier(0.4, 0, 0.2, 1)';
+    }));
+
+    document.getElementById('overlay').classList.remove('show');
+    document.getElementById('instructions').textContent = 'Tap a stall!';
+    updateStreak();
+  }
+
+  function updateStreak() {
+    const el = document.getElementById('streak');
+    if (streak >= 3)     el.textContent = '🔥 ' + streak + ' in a row! On fire!';
+    else if (streak === 2) el.textContent = '⚡ 2 in a row! Keep going!';
+    else                   el.textContent = '';
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎮 Mike's Game Hub</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-from: #1a1a2e;
+      --bg-mid:  #16213e;
+      --bg-to:   #0f3460;
+      --accent:  #e94560;
+      --text:    #f0f0f0;
+      --card-bg: rgba(255,255,255,0.06);
+      --card-border: rgba(255,255,255,0.1);
+      --card-hover-border: rgba(255,255,255,0.3);
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, var(--bg-from), var(--bg-mid), var(--bg-to));
+      min-height: 100vh;
+      color: var(--text);
+      padding: 40px 20px 60px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header .logo {
+      font-size: 3.2rem;
+      line-height: 1;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 4px 12px rgba(233,69,96,0.5));
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-8px); }
+    }
+
+    header h1 {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #fff 30%, #e94560);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      margin-top: 8px;
+      color: rgba(255,255,255,0.5);
+      font-size: 1.05rem;
+    }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px 28px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      cursor: pointer;
+      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .card:hover {
+      transform: translateY(-6px) scale(1.02);
+      border-color: var(--card-hover-border);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.1);
+    }
+
+    .card:active {
+      transform: translateY(-2px) scale(1.00);
+    }
+
+    .card-emoji {
+      font-size: 3.2rem;
+      line-height: 1;
+    }
+
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .card-desc {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    .card-tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      width: fit-content;
+    }
+
+    .tag-action    { background: rgba(233,69,96,0.2);  color: #ff8fa3; }
+    .tag-puzzle    { background: rgba(99,179,237,0.2);  color: #90cdf4; }
+    .tag-math      { background: rgba(154,230,180,0.2); color: #9ae6b4; }
+    .tag-adventure { background: rgba(246,173,85,0.2);  color: #f6ad55; }
+
+    .play-btn {
+      margin-top: 4px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(135deg, #e94560, #c62a47);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: fit-content;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 16px rgba(233,69,96,0.35);
+    }
+
+    .play-btn:hover  { transform: scale(1.05); box-shadow: 0 6px 20px rgba(233,69,96,0.5); }
+    .play-btn:active { transform: scale(0.97); }
+
+    /* ── Game Overlay ── */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0a0a14;
+      z-index: 1000;
+      flex-direction: column;
+    }
+
+    #overlay.active { display: flex; }
+
+    .overlay-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 20px;
+      background: rgba(0,0,0,0.6);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(10px);
+      flex-shrink: 0;
+    }
+
+    #back-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 50px;
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    #back-btn:hover {
+      background: rgba(255,255,255,0.14);
+      border-color: rgba(255,255,255,0.35);
+    }
+
+    #overlay-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #game-frame {
+      flex: 1;
+      border: none;
+      width: 100%;
+      background: #fff;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      margin-top: 48px;
+      color: rgba(255,255,255,0.25);
+      font-size: 0.85rem;
+    }
+
+    /* ── Stars bg ── */
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--dur, 3s) ease-in-out infinite;
+      opacity: 0;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0; }
+      50%       { opacity: var(--op, 0.6); }
+    }
+
+    body > *:not(.stars) { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- Starfield background -->
+  <div class="stars" id="stars"></div>
+
+  <header>
+    <div class="logo">🎮</div>
+    <h1>Mike's Game Hub</h1>
+    <p>Pick a game and start playing!</p>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>Built with ❤️ for the kids</footer>
+
+  <!-- Game Overlay -->
+  <div id="overlay">
+    <div class="overlay-bar">
+      <button id="back-btn" onclick="closeGame()">← Back to Hub</button>
+      <div id="overlay-title"></div>
+    </div>
+    <iframe id="game-frame" allowfullscreen></iframe>
+  </div>
+
+  <script>
+    const GAMES = [
+      {
+        emoji: "🐾",
+        title: "Animal Match",
+        desc: "Flip cards and find matching animal pairs before the board is cleared!",
+        tag: "puzzle",
+        tagLabel: "Puzzle",
+        url: "animal-matching-game.html"
+      },
+      {
+        emoji: "🫧",
+        title: "Pop the Bubbles!",
+        desc: "Tap colourful bubbles floating up the screen before they escape — how many can you pop?",
+        tag: "action",
+        tagLabel: "Action",
+        url: "pop-the-bubbles.html"
+      },
+      {
+        emoji: "🔤",
+        title: "Word Puzzle",
+        desc: "Guess the missing first letter of words shown as emoji and partial spelling.",
+        tag: "puzzle",
+        tagLabel: "Puzzle",
+        url: "word_game.html"
+      },
+      {
+        emoji: "🧮",
+        title: "Charlie's Math Game",
+        desc: "Solve addition and subtraction problems with fun visuals and streak tracking.",
+        tag: "math",
+        tagLabel: "Math",
+        url: "charlie-math-game/index.html"
+      },
+      {
+        emoji: "🚽",
+        title: "Stall or Fall!",
+        desc: "Guide your character to the right toilet stall — can you avoid a messy disaster?",
+        tag: "action",
+        tagLabel: "Action",
+        url: "bathroom_game.html"
+      },
+      {
+        emoji: "🚒",
+        title: "Fire Fighter Fun",
+        desc: "Tap and hold to spray water on fires across five challenging levels — save the day!",
+        tag: "adventure",
+        tagLabel: "Adventure",
+        url: "firefighter.html"
+      }
+    ];
+
+    // Build grid
+    const grid = document.getElementById('grid');
+    GAMES.forEach(game => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <div class="card-emoji">${game.emoji}</div>
+        <div>
+          <div class="card-tag tag-${game.tag}">${game.tagLabel}</div>
+        </div>
+        <div class="card-title">${game.title}</div>
+        <div class="card-desc">${game.desc}</div>
+        <button class="play-btn">▶ Play Now</button>
+      `;
+      card.addEventListener('click', () => openGame(game));
+      grid.appendChild(card);
+    });
+
+    // Open game
+    function openGame(game) {
+      document.getElementById('game-frame').src = game.url;
+      document.getElementById('overlay-title').innerHTML = `${game.emoji} ${game.title}`;
+      document.getElementById('overlay').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Close game
+    function closeGame() {
+      document.getElementById('overlay').classList.remove('active');
+      document.getElementById('game-frame').src = '';
+      document.body.style.overflow = '';
+    }
+
+    // Close on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeGame();
+    });
+
+    // Generate starfield
+    const starsEl = document.getElementById('stars');
+    for (let i = 0; i < 120; i++) {
+      const s = document.createElement('div');
+      s.className = 'star';
+      s.style.left = Math.random() * 100 + '%';
+      s.style.top  = Math.random() * 100 + '%';
+      s.style.setProperty('--dur', (2 + Math.random() * 4) + 's');
+      s.style.setProperty('--op',  (0.3 + Math.random() * 0.7).toFixed(2));
+      s.style.animationDelay = (Math.random() * 5) + 's';
+      starsEl.appendChild(s);
+    }
+  </script>
+</body>
+</html>

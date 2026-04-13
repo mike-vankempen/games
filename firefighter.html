@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🔥 Fire Fighter Fun!</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body {
+  overflow: hidden;
+  background: #000;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  cursor: none;
+  user-select: none;
+  touch-action: none;
+}
+canvas { display: block; }
+#hud {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.badge {
+  background: rgba(0,0,0,0.55);
+  color: white;
+  padding: 7px 18px;
+  border-radius: 30px;
+  font-size: clamp(15px, 4vw, 22px);
+  font-weight: bold;
+  border: 2px solid rgba(255,255,255,0.25);
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+}
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.78);
+  z-index: 10;
+}
+#obox {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 3px solid rgba(255,255,255,0.18);
+  border-radius: 28px;
+  padding: clamp(28px, 6vw, 55px) clamp(24px, 7vw, 65px);
+  text-align: center;
+  max-width: 580px;
+  width: 92%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+#otitle {
+  font-size: clamp(32px, 9vw, 68px);
+  color: white;
+  margin-bottom: 12px;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+  line-height: 1.1;
+}
+#osub {
+  font-size: clamp(15px, 3.5vw, 24px);
+  color: #ccc;
+  margin-bottom: 30px;
+  line-height: 1.5;
+}
+#obtn {
+  font-size: clamp(18px, 4.5vw, 30px);
+  padding: clamp(14px,3vw,20px) clamp(30px,7vw,60px);
+  background: linear-gradient(135deg, #ff6b35, #ffa55a);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 8px 25px rgba(255,107,53,0.55);
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+  touch-action: manipulation;
+}
+#obtn:hover { transform: scale(1.06); }
+#obtn:active { transform: scale(0.95); }
+.hidden { display: none !important; }
+/* Mobile cursor hint */
+#hint {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.5);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: clamp(13px, 3.5vw, 18px);
+  pointer-events: none;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+#hint.show { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="badge" id="lvlbadge">🔥 Level 1</div>
+  <div class="badge" id="firebadge">🔥 0 left</div>
+</div>
+<div id="hint">👆 Tap &amp; hold fires to spray water!</div>
+<div id="overlay">
+  <div id="obox">
+    <div id="otitle">🔥 Fire Fighter! 🔥</div>
+    <p id="osub">Tap and hold the fires to spray water and put them out! 💧</p>
+    <button id="obtn" onclick="startLevel()">Let's Go! 🚒</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+const resize = () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; };
+resize();
+window.addEventListener('resize', resize);
+
+let mx = 0, my = 0, isDown = false;
+let isTouchDevice = false;
+let gameState = 'menu'; // menu | playing | intermission | levelDone | win
+let level = 0;
+let fires = [], drops = [], smokes = [], confetti = [], floatTexts = [];
+let tick = 0;
+let winBuildings = []; // pre-computed building window data
+
+// ─── Audio ────────────────────────────────────────────────────────
+let aCtx;
+const initAudio = () => { if (!aCtx) aCtx = new (window.AudioContext || window.webkitAudioContext)(); };
+const playTone = (freq, dur, vol=0.25) => {
+  if (!aCtx) return;
+  try {
+    const o = aCtx.createOscillator(), g = aCtx.createGain();
+    o.frequency.value = freq; o.type = 'sine';
+    g.gain.setValueAtTime(vol, aCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, aCtx.currentTime + dur);
+    o.connect(g); g.connect(aCtx.destination);
+    o.start(); o.stop(aCtx.currentTime + dur);
+  } catch(e) {}
+};
+const playExtinguish = () => { playTone(880,0.1); setTimeout(()=>playTone(1100,0.15),80); };
+const playWaterSound = () => {
+  if (!aCtx || tick % 8 !== 0) return;
+  try {
+    const buf = aCtx.createBuffer(1, aCtx.sampleRate*0.07, aCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1)*(1-i/d.length)*0.4;
+    const s = aCtx.createBufferSource();
+    const f = aCtx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=800;
+    const g = aCtx.createGain(); g.gain.value = 0.15;
+    s.buffer=buf; s.connect(f); f.connect(g); g.connect(aCtx.destination); s.start();
+  } catch(e) {}
+};
+
+// ─── Levels ───────────────────────────────────────────────────────
+const LEVELS = [
+  { title:'🌲 Level 1: The Campfire!',  hint:'Put out the campfire! Tap and hold! 💧', count:1, bg:['#ff9a3c','#ffd700'], scene:'meadow'  },
+  { title:'🌳 Level 2: Burning Trees!', hint:'Save the 2 trees from the fire!',        count:2, bg:['#ff6600','#ff9a3c'], scene:'forest'  },
+  { title:'🏠 Level 3: The House!',     hint:'Save the house! 3 fires!',               count:3, bg:['#e74c3c','#ff8050'], scene:'town'    },
+  { title:'🌲 Level 4: Forest Fire!',   hint:'Big forest fire! Put out 5 fires!',      count:5, bg:['#c0392b','#e74c3c'], scene:'forest2' },
+  { title:'🏙️ Level 5: City on Fire!',  hint:'Save the city! 7 fires!',               count:7, bg:['#8e44ad','#c0392b'], scene:'city'    },
+];
+
+// ─── Fire ─────────────────────────────────────────────────────────
+class Fire {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.hp = 100; this.alive = true;
+    this.size = 58 + Math.random()*28;
+    this.ph = Math.random()*Math.PI*2;
+    this.ps = 0.055 + Math.random()*0.04;
+    this.pulseT = 0;
+  }
+  hit(dmg) {
+    if (!this.alive) return;
+    this.hp -= dmg;
+    this.pulseT = 8;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false;
+      for (let i=0;i<10;i++) smokes.push(new Smoke(this.x, this.y));
+      floatTexts.push({x:this.x, y:this.y-70, text:'OUT! 💧', life:1, vy:-1.2});
+      playExtinguish();
+    }
+  }
+  draw() {
+    if (!this.alive) return;
+    this.ph += this.ps;
+    if (this.pulseT > 0) this.pulseT--;
+    const ratio = Math.max(0.1, this.hp/100);
+    const fl = 0.88 + 0.12*Math.sin(this.ph);
+    const s = this.size * fl * (0.5 + 0.5*ratio);
+    const px = this.pulseT > 0 ? 1.08 : 1;
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.scale(px, px);
+
+    // Glow
+    const grd = ctx.createRadialGradient(0,-s*0.1,0, 0,-s*0.1,s*2.2);
+    grd.addColorStop(0, `rgba(255,120,0,${0.35*ratio})`);
+    grd.addColorStop(1, 'rgba(255,50,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.ellipse(0, 0, s*2, s*1.5, 0, 0, Math.PI*2); ctx.fill();
+
+    // Fire layers
+    flame(s*0.85, s*1.1, '#ff2200', '#dd0000', this.ph, 0);
+    flame(s*0.62, s*0.85, '#ff6600', '#ff4400', this.ph+1, -s*0.05);
+    flame(s*0.38, s*0.58, '#ffcc00', '#ffaa00', this.ph+2, -s*0.12);
+    flame(s*0.18, s*0.28, '#ffffff', '#ffff88', this.ph+3, -s*0.17);
+
+    ctx.restore();
+
+    // HP bar
+    const bw = this.size*1.9, bx = this.x-bw/2, by = this.y + this.size*0.65;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    roundRect(bx-2, by-2, bw+4, 13, 6); ctx.fill();
+    ctx.fillStyle = '#ff3333';
+    roundRect(bx, by, bw, 9, 4); ctx.fill();
+    ctx.fillStyle = ratio > 0.5 ? '#33ff66' : ratio > 0.25 ? '#ffcc00' : '#ff6600';
+    roundRect(bx, by, bw*ratio, 9, 4); ctx.fill();
+  }
+}
+
+function flame(rx, ry, c1, c2, ph, oy=0) {
+  ctx.beginPath();
+  const pts = 9;
+  for (let i=0;i<=pts;i++) {
+    const a = (i/pts)*Math.PI*2 - Math.PI/2;
+    const w = 1 + 0.18*Math.sin(ph*1.8 + i*1.6);
+    const x = Math.cos(a)*rx*w;
+    const y = oy + Math.sin(a)*ry*w*0.68;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(0,oy,0, 0,oy-ry*0.25,ry);
+  g.addColorStop(0, c2); g.addColorStop(1, c1);
+  ctx.fillStyle = g; ctx.fill();
+}
+
+// ─── Smoke ────────────────────────────────────────────────────────
+class Smoke {
+  constructor(x,y) {
+    this.x=x+(Math.random()-.5)*35; this.y=y;
+    this.vx=(Math.random()-.5)*1.2; this.vy=-1.2-Math.random()*1.5;
+    this.r=12+Math.random()*18; this.life=1; this.decay=0.009+Math.random()*0.009;
+  }
+  update() { this.x+=this.vx; this.y+=this.vy; this.r+=0.6; this.life-=this.decay; }
+  draw() {
+    ctx.save(); ctx.globalAlpha=this.life*0.45;
+    ctx.fillStyle='#aaa'; ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── Water drop ───────────────────────────────────────────────────
+class Drop {
+  constructor(x,y) {
+    const a = -Math.PI/2 + (Math.random()-.5)*0.7;
+    const sp = 5 + Math.random()*5;
+    this.x=x; this.y=y;
+    this.vx=Math.cos(a)*sp*0.65; this.vy=Math.sin(a)*sp;
+    this.r=2.5+Math.random()*3.5; this.life=1; this.decay=0.04+Math.random()*0.03;
+  }
+  update() { this.x+=this.vx; this.y+=this.vy; this.vy+=0.32; this.life-=this.decay; }
+  draw() {
+    ctx.save(); ctx.globalAlpha=this.life*0.85;
+    const a = Math.atan2(this.vy,this.vx)+Math.PI/2;
+    ctx.translate(this.x,this.y); ctx.rotate(a);
+    ctx.fillStyle='#4fc3f7'; ctx.beginPath(); ctx.ellipse(0,0,this.r*0.6,this.r,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.ellipse(-this.r*.18,-this.r*.3,this.r*.2,this.r*.3,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────
+class Conf {
+  constructor(cx,cy) {
+    this.x=cx ?? Math.random()*W; this.y=cy ?? -20;
+    this.vx=(Math.random()-.5)*3; this.vy=2+Math.random()*3;
+    this.color=`hsl(${Math.floor(Math.random()*360)},90%,60%)`;
+    this.w=8+Math.random()*10; this.h=5+Math.random()*6;
+    this.rot=Math.random()*Math.PI*2; this.rv=(Math.random()-.5)*0.15;
+    this.life=1; this.decay=0.004;
+  }
+  update() { this.x+=this.vx; this.y+=this.vy; this.rot+=this.rv; this.vx+=(Math.random()-.5)*.1; if(this.y>H+20)this.life=0; }
+  draw() {
+    ctx.save(); ctx.globalAlpha=Math.min(1,this.life);
+    ctx.translate(this.x,this.y); ctx.rotate(this.rot);
+    ctx.fillStyle=this.color; ctx.fillRect(-this.w/2,-this.h/2,this.w,this.h);
+    ctx.restore();
+  }
+}
+
+// ─── Rounded rect helper ──────────────────────────────────────────
+function roundRect(x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+}
+
+// ─── Scene drawing ────────────────────────────────────────────────
+function drawScene() {
+  const l = LEVELS[level];
+  const groundY = H*0.7;
+
+  // Sky
+  const sky = ctx.createLinearGradient(0,0,0,groundY);
+  sky.addColorStop(0,'#0d0d1a'); sky.addColorStop(0.45,l.bg[0]); sky.addColorStop(1,l.bg[1]);
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,groundY);
+
+  // Ground
+  const grd = ctx.createLinearGradient(0,groundY,0,H);
+  grd.addColorStop(0,'#3a5c1e'); grd.addColorStop(1,'#1a3008');
+  ctx.fillStyle=grd; ctx.fillRect(0,groundY,W,H-groundY);
+  ctx.fillStyle='#4e7a25'; ctx.fillRect(0,groundY,W,7);
+
+  const sc = l.scene;
+  if (sc==='meadow')  drawMeadow(groundY);
+  else if (sc==='forest')  drawForest(groundY, false);
+  else if (sc==='forest2') drawForest(groundY, true);
+  else if (sc==='town')    drawTown(groundY);
+  else if (sc==='city')    drawCity(groundY);
+}
+
+function tree(x,y,size) {
+  ctx.fillStyle='#6d4c1e';
+  ctx.fillRect(x-size*.07, y-size*.4, size*.14, size*.42);
+  ctx.fillStyle='#2e7d32';
+  [[0,.7,.43,-.72],[.5,.52,.35,-.94],[1,.32,.26,-1.12]].forEach(([oy,bw,tw,ty])=>{
+    ctx.beginPath();
+    ctx.moveTo(x, y+ty*size);
+    ctx.lineTo(x-bw*size, y-oy*size*0.25);
+    ctx.lineTo(x+bw*size, y-oy*size*0.25);
+    ctx.closePath(); ctx.fill();
+  });
+}
+function drawMeadow(gy) {
+  [0.08,0.22,0.5,0.78,0.92].forEach((f,i)=>tree(W*f,gy,55+i*4));
+}
+function drawForest(gy,dense) {
+  const n=dense?9:6;
+  for(let i=0;i<n;i++) tree(W*(0.06+(0.88/n)*i+0.04), gy, 48+i*5);
+}
+function drawTown(gy) {
+  const drawHouse=(x,size)=>{
+    ctx.fillStyle='#f0d9a0'; ctx.fillRect(x-size*.5,gy-size*.65,size,size*.65);
+    ctx.fillStyle='#8b1a1a';
+    ctx.beginPath(); ctx.moveTo(x-size*.58,gy-size*.65); ctx.lineTo(x,gy-size*1.15); ctx.lineTo(x+size*.58,gy-size*.65); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#7a4010'; ctx.fillRect(x-size*.1,gy-size*.28,size*.2,size*.28);
+    ctx.fillStyle='#87ceeb';
+    ctx.fillRect(x-size*.38,gy-size*.55,size*.2,size*.18);
+    ctx.fillRect(x+size*.18,gy-size*.55,size*.2,size*.18);
+  };
+  [0.18,0.5,0.82].forEach(f=>drawHouse(W*f,115));
+  [0.05,0.32,0.68,0.95].forEach(f=>tree(W*f,gy,48));
+}
+function drawCity(gy) {
+  winBuildings.forEach(b=>{
+    ctx.fillStyle=b.c; ctx.fillRect(b.x-b.w/2, gy-b.h, b.w, b.h);
+    b.wins.forEach(w=>{
+      ctx.fillStyle=w.on?'rgba(255,220,80,0.85)':'rgba(30,30,50,0.7)';
+      ctx.fillRect(w.x,w.y,w.w,w.h);
+    });
+  });
+}
+
+// ─── Level init ───────────────────────────────────────────────────
+function buildCityData() {
+  winBuildings = [];
+  const gy=H*0.7;
+  const specs=[
+    {f:.07,w:72,h:160,c:'#455a64'},{f:.17,w:58,h:220,c:'#37474f'},
+    {f:.28,w:84,h:180,c:'#546e7a'},{f:.4, w:62,h:255,c:'#37474f'},
+    {f:.5, w:78,h:195,c:'#455a64'},{f:.62,w:68,h:215,c:'#546e7a'},
+    {f:.73,w:74,h:172,c:'#37474f'},{f:.84,w:82,h:240,c:'#455a64'},
+    {f:.93,w:58,h:190,c:'#546e7a'},
+  ];
+  specs.forEach(sp=>{
+    const bx=W*sp.f, bh=sp.h, bw=sp.w;
+    const wins=[];
+    const rows=Math.floor(bh/28), cols=Math.floor(bw/22);
+    for(let r=0;r<rows-1;r++) for(let c=0;c<cols;c++){
+      wins.push({x:bx-bw/2+5+c*22, y:gy-bh+8+r*28, w:14,h:18, on:Math.random()>0.28});
+    }
+    winBuildings.push({x:bx,w:bw,h:bh,c:sp.c,wins});
+  });
+}
+
+function placeFires() {
+  fires=[];
+  const n=LEVELS[level].count, gy=H*0.7;
+  const margin=W*0.11, span=W-margin*2;
+  for(let i=0;i<n;i++){
+    const t=n===1?0.5:i/(n-1);
+    const x=margin+span*t+(Math.random()-.5)*(span/n)*0.45;
+    const y=gy-5+(Math.random()-.5)*15;
+    fires.push(new Fire(x,y));
+  }
+}
+
+// ─── Cursor (desktop) ─────────────────────────────────────────────
+function drawCursor() {
+  if (isTouchDevice) return;
+  ctx.save();
+  ctx.translate(mx,my);
+
+  // Hose pipe
+  ctx.strokeStyle='#c0392b'; ctx.lineWidth=9; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(22,22); ctx.quadraticCurveTo(8,4,-4,-4); ctx.stroke();
+
+  // Nozzle body
+  ctx.fillStyle='#7f8c8d';
+  roundRect(-17,-15,22,11,4); ctx.fill();
+  ctx.fillStyle='#95a5a6';
+  roundRect(-21,-20,13,9,3); ctx.fill();
+
+  // Water stream when pressing
+  if (isDown && gameState==='playing') {
+    for(let i=0;i<3;i++){
+      const t=((tick*0.14+i*0.45)%1);
+      const alpha = t<0.5 ? t*1.8 : (1-t)*1.8;
+      ctx.strokeStyle=`rgba(79,195,247,${alpha*0.6})`;
+      ctx.lineWidth=5-i*1.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-20,-15);
+      ctx.lineTo(-36-t*22,-15-t*18);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// ─── Water spray ──────────────────────────────────────────────────
+function sprayWater() {
+  if (!isDown || gameState!=='playing') return;
+  playWaterSound();
+
+  // Origin: nozzle tip on desktop, finger on mobile
+  const sx = isTouchDevice ? mx : mx-36;
+  const sy = isTouchDevice ? my : my-15;
+
+  if (tick%2===0) {
+    for(let i=0;i<4;i++) drops.push(new Drop(sx,sy));
+  }
+
+  fires.forEach(f=>{
+    if(!f.alive) return;
+    const dist=Math.hypot(mx-f.x, my-f.y);
+    if(dist < f.size * (isTouchDevice ? 2.5 : 2)) {
+      f.hit(isTouchDevice ? 2.2 : 1.8);
+    }
+  });
+}
+
+// ─── HUD ──────────────────────────────────────────────────────────
+function updateHUD() {
+  const alive=fires.filter(f=>f.alive).length;
+  document.getElementById('lvlbadge').textContent=`🔥 Level ${level+1}`;
+  document.getElementById('firebadge').textContent=
+    alive>0 ? `🔥 ${alive} fire${alive!==1?'s':''} left!` : '✅ All out!';
+}
+
+// ─── Win check ────────────────────────────────────────────────────
+let wonChecked=false;
+function checkWin() {
+  if(gameState!=='playing'||wonChecked) return;
+  if(fires.length>0 && fires.every(f=>!f.alive)){
+    wonChecked=true; gameState='intermission';
+    setTimeout(()=>{
+      if(level>=LEVELS.length-1) showOverlay('win');
+      else showOverlay('done');
+    },1100);
+  }
+}
+
+// ─── Overlay ──────────────────────────────────────────────────────
+function showOverlay(type) {
+  const ov=document.getElementById('overlay');
+  const title=document.getElementById('otitle');
+  const sub=document.getElementById('osub');
+  const btn=document.getElementById('obtn');
+  ov.classList.remove('hidden');
+
+  for(let i=0;i<90;i++) confetti.push(new Conf());
+
+  if(type==='win'){
+    title.textContent='🎉 YOU WIN! 🎉';
+    sub.textContent='Amazing! You put out ALL the fires and saved the day! You\'re a Fire Fighter hero! 🚒💧';
+    btn.textContent='Play Again! 🎮';
+    btn.onclick=()=>{ level=0; startLevel(); };
+  } else if(type==='done'){
+    title.textContent='💧 Level Done! 💧';
+    sub.innerHTML=`Great job! All fires are out! 🎉<br>Ready for Level ${level+2}?`;
+    btn.textContent=`Level ${level+2}! ➡️`;
+    btn.onclick=()=>{ level++; startLevel(); };
+  }
+}
+
+function startLevel() {
+  initAudio();
+  document.getElementById('overlay').classList.add('hidden');
+  drops=[]; smokes=[]; floatTexts=[];
+  gameState='playing'; wonChecked=false;
+  if(LEVELS[level].scene==='city') buildCityData();
+  placeFires();
+  document.getElementById('hint').classList.remove('show');
+}
+window.startLevel = startLevel;
+
+// ─── Input ────────────────────────────────────────────────────────
+document.addEventListener('mousemove',e=>{ mx=e.clientX; my=e.clientY; });
+document.addEventListener('mousedown',()=>{ isDown=true; initAudio(); });
+document.addEventListener('mouseup',()=>isDown=false);
+
+// Touch on the canvas (game area) — prevent scroll/zoom while playing
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault(); isTouchDevice=true; isDown=true;
+  mx=e.touches[0].clientX; my=e.touches[0].clientY;
+  initAudio();
+  document.getElementById('hint').textContent='💧 Tap & hold fires to spray water!';
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault(); mx=e.touches[0].clientX; my=e.touches[0].clientY;
+},{passive:false});
+canvas.addEventListener('touchend',()=>isDown=false);
+canvas.addEventListener('touchcancel',()=>isDown=false);
+
+// Also allow button taps to init audio on iOS (needs a touch gesture)
+document.getElementById('obtn').addEventListener('touchstart',()=>{ isTouchDevice=true; initAudio(); },{passive:true});
+
+// Show touch hint briefly at start
+setTimeout(()=>{
+  if(isTouchDevice){ document.getElementById('hint').classList.add('show'); }
+},500);
+setTimeout(()=>document.getElementById('hint').classList.remove('show'),4000);
+
+// ─── Game loop ────────────────────────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  ctx.clearRect(0,0,W,H);
+  tick++;
+
+  drawScene();
+  fires.forEach(f=>f.draw());
+  sprayWater();
+
+  drops=drops.filter(d=>d.life>0);
+  drops.forEach(d=>{d.update();d.draw();});
+
+  smokes=smokes.filter(s=>s.life>0);
+  smokes.forEach(s=>{s.update();s.draw();});
+
+  confetti=confetti.filter(c=>c.life>0);
+  confetti.forEach(c=>{c.update();c.draw();});
+
+  floatTexts=floatTexts.filter(t=>t.life>0);
+  floatTexts.forEach(t=>{
+    ctx.save();
+    ctx.globalAlpha=t.life;
+    ctx.font=`bold ${clamp(28,5.5*W/100,44)}px Arial`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=3;
+    ctx.strokeText(t.text,t.x,t.y);
+    ctx.fillStyle='#4fc3f7'; ctx.fillText(t.text,t.x,t.y);
+    ctx.restore();
+    t.y+=t.vy; t.life-=0.011;
+  });
+
+  // Touch water ring (visual indicator on mobile)
+  if(isTouchDevice && isDown && gameState==='playing'){
+    const r=35+4*Math.sin(tick*0.25);
+    ctx.save();
+    ctx.strokeStyle='rgba(79,195,247,0.55)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.arc(mx,my,r,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle='rgba(79,195,247,0.25)'; ctx.lineWidth=12;
+    ctx.beginPath(); ctx.arc(mx,my,r,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  drawCursor();
+  updateHUD();
+  checkWin();
+}
+const clamp=(min,v,max)=>Math.max(min,Math.min(max,v));
+loop();
+</script>
+</body>
+</html>
