@@ -478,6 +478,9 @@
     }
 
     // ── Boot ──
+    // init() sets up clouds, dino, speed etc. so the idle screen can draw
+    init();
+    state = 'idle';
     loop();
   </script>
 </body>
